@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 import platform
 import aiohttp
 import asyncio
+import json
+
 
 # Перевірка введених даних командного рядку
 
@@ -51,18 +53,26 @@ def get_urls(dates):
 # Асинхронний запуск сесій
 
 async def main():
+    result = []
     async with aiohttp.ClientSession() as session:
         for url in urls:
-            print(f'Starting {url}')
             try:
                 async with session.get(url) as resp:
                     if resp.status == 200:
-                        html = await resp.text()
-                        print(url, html[:150])
+                        data =  await resp.json()
+                        rates = data.get("exchangeRate", [])
+                        filtered = [r for r in rates if r.get("currency") in ("EUR", "USD")]
+                        currency = {}
+                        for rate in filtered:
+                            currency[rate['currency']] = {'sale' : rate['saleRate'], 'purchase' : rate['purchaseRate']}
+                        result_of_date = {}
+                        result_of_date[url.split('=')[-1]] = currency
+                        result.append(result_of_date)
                     else:
                         print(f"Error status: {resp.status} for {url}")
             except aiohttp.ClientConnectorError as err:
                 print(f'Connection error: {url}', str(err))
+        return result
     
 
 
@@ -71,49 +81,8 @@ if __name__ == "__main__":
     number_of_days = parse_sys_argv(sys.argv) # дістаємо з командного рядка кількість днів
     list_of_dates = create_date_list(number_of_days) # формуємо дати, по яких робитимемо запити
     urls = get_urls(list_of_dates) # формуємо список url для запитів
-    # print(urls)
     if platform.system() == 'Windows':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        asyncio.run(main())
+        result = asyncio.run(main())
+        print(json.dumps(result, indent=2, ensure_ascii=False))
 
-
-
-
-
-
-
-
-
-
-
-
-
-# import requests
-
-# def get_usd_eur_rates(date_str: str):
-#     url = f"https://api.privatbank.ua/p24api/exchange_rates?json&date={date_str}"
-#     response = requests.get(url)
-#     data = response.json()
-    
-#     rates = data.get("exchangeRate", [])
-#     filtered = [
-#         r for r in rates if r.get("currency") in ("EUR", "USD")
-#     ]
-
-#     dict_date = {date_str:{
-
-#     }}
-    
-#     print(f"Date: {date_str}")
-#     currency = {}
-#     for rate in filtered:
-#         print(f"{rate['currency']}: buy = {rate['purchaseRate']}, sale = {rate['saleRate']}")
-#         # currency = {rate['currency'] : {'sale' : rate['saleRate'], 'purchase' : rate['purchaseRate']}}
-#         currency[rate['currency']] = {'sale' : rate['saleRate'], 'purchase' : rate['purchaseRate']}
-#     # print(currency)
-#     result = {}
-#     result[date_str] = currency
-#     print(result)
-
-# # Приклад
-# get_usd_eur_rates("19.01.2025")
